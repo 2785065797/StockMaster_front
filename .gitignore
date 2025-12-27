@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE configuration files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.vscode/
+
+# Logs
+*.log
+
+# Vite cache
+.cache/
+
+# TypeScript build artifacts
+*.d.ts
+tsconfig.tsbuildinfo
+
+# Local config
+local.env
