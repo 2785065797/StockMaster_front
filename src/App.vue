@@ -17,35 +17,24 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 
 // 自动登录状态
+axios.defaults.withCredentials = true
 const isAutoLoginLoading = ref(true)
 const router = useRouter()
 
 // 自动登录逻辑
 const autoLogin = async () => {
-  const token = localStorage.getItem('token')
-
-  // 无token直接跳转登录页
-  if (!token) {
-    isAutoLoginLoading.value = false
-    return
-  }
-
   try {
+    console.log('autoLogin')
     // 调用后端自动登录接口
-    const response = await axios.post('/api/auth/auto-login', null, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const response = await axios.post('/api/user/auto-login', null, { withCredentials: true })
 
     if (response.data.code === 200) {
       // 跳转到主页
       router.push('/dashboard')
     } else {
-      // token无效，清除存储
-      localStorage.removeItem('token')
       router.push('/login')
     }
   } catch {
-    localStorage.removeItem('token')
     router.push('/login')
   } finally {
     isAutoLoginLoading.value = false

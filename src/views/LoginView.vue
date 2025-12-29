@@ -83,7 +83,9 @@
         <template #footer>
           <span class="dialog-footer">
             <el-button @click="showRegister = false">取 消</el-button>
-            <el-button type="primary" @click="handleRegister">确 定</el-button>
+            <el-button type="primary" @click="handleRegister" :loading="registerLoading"
+              >确 定</el-button
+            >
           </span>
         </template>
       </el-dialog>
@@ -95,6 +97,7 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
+import router from '@/router'
 
 // 表单数据
 const loginForm = reactive({
@@ -116,6 +119,7 @@ const registerForm = reactive({
 const loading = ref(false)
 const showForgot = ref(false)
 const showRegister = ref(false)
+const registerLoading = ref(false) // 注册加载状态
 
 // 表单验证规则
 const loginRules = {
@@ -158,23 +162,24 @@ const handleLogin = async () => {
     loading.value = true
 
     // 调用后端接口
-    const response = await axios.post('http://localhost:8080/auth/login', {
-      username: loginForm.username,
-      password: loginForm.password,
-    })
+    const response = await axios.post(
+      '/api/user/login',
+      {
+        username: loginForm.username,
+        password: loginForm.password,
+      },
+      { withCredentials: true },
+    )
 
     // 处理成功响应
     if (response.data.code === 200) {
-      // 存储token
-      localStorage.setItem('token', response.data.data.token)
-
       // 跳转到首页
-      window.location.href = '/dashboard'
+      router.push('/dashboard')
     } else {
-      ElMessage.error(response.data.message || '登录失败')
+      ElMessage.error(response.data.message || '登録失敗！')
     }
   } catch {
-    ElMessage.error('网络错误，请重试')
+    ElMessage.error('ネットワークエラー、再試行してください')
   } finally {
     loading.value = false
   }
@@ -182,18 +187,45 @@ const handleLogin = async () => {
 
 // 忘记密码
 const handleForgot = () => {
-  ElMessage.success('已发送重置邮件至您的邮箱')
+  ElMessage.success('リセット用のメールが送信されました。メールを確認してください。')
   showForgot.value = false
 }
 
 // 注册账号
-const handleRegister = () => {
-  ElMessage.success('注册成功，请登录')
-  showRegister.value = false
+const handleRegister = async () => {
+  try {
+    const valid = await registerFormRef.value.validate()
+    if (!valid) return
+
+    registerLoading.value = true
+
+    // 调用后端接口
+    const response = await axios.post('/api/user/register', {
+      username: registerForm.username,
+      email: registerForm.email,
+      password: registerForm.password,
+    })
+
+    // 处理成功响应
+    if (response.data.code === 200) {
+      ElMessage.success('登録成功，请登录')
+      showRegister.value = false
+      console.log('登録成功，请登录')
+      //router.push('/login')
+    } else {
+      ElMessage.error(response.data.message || '登録失敗！')
+    }
+  } catch {
+    ElMessage.error('ネットワークエラー、再試行してください')
+  } finally {
+    registerLoading.value = false
+  }
 }
 
 // 引用表单实例
 const loginFormRef = ref()
+const forgotFormRef = ref()
+const registerFormRef = ref()
 </script>
 
 <style scoped>

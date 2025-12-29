@@ -11,9 +11,8 @@ import { computed } from 'vue'
 
 // 从 localStorage 获取用户名
 const username = computed(() => {
-  const token = localStorage.getItem('token')
   // 实际项目中这里应该解析 token 获取用户名
-  return token ? '管理员' : '未登录'
+  return '用户信息'
 })
 </script>
 
