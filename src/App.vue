@@ -53,18 +53,18 @@ onMounted(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #4a6fa5, #2a5298);
+  background: linear-gradient(135deg, #ffffff, #d4d7da);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   z-index: 9999;
-  color: white;
+  color: rgb(0, 0, 0);
 }
 
 .loading-spinner {
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top: 4px solid white;
+  border: 4px solid rgba(77, 166, 255, 0.3);
+  border-top: 4px solid #4da6ff;
   border-radius: 50%;
   width: 50px;
   height: 50px;
@@ -73,8 +73,12 @@ onMounted(() => {
 }
 
 .loading-text {
-  font-size: 18px;
-  letter-spacing: 1px;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+  font-weight: 400;
+  color: #333333;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+  opacity: 0.95;
 }
 
 @keyframes spin {
