@@ -1,547 +1,538 @@
 <template>
-  <AppHeader :title="'StockMaster'" />
   <div class="inventory-container">
-    <header class="inventory-header">
-      <div class="header-left">
-        <button class="back-btn" @click="goBack">← 返回</button>
-        <h1>库存管理</h1>
-      </div>
-      <div class="header-actions">
-        <input v-model="query" class="search" placeholder="搜索商品名称或 SKU" />
-        <button class="add-btn" @click="openAdd">新增商品</button>
-      </div>
-    </header>
+    <!-- 顶部导航 -->
+    <AppHeader :title="'库存管理'" />
 
-    <section class="controls">
-      <div class="stats">
-        <div>
-          总商品: <strong>{{ items.length }}</strong>
+    <!-- 主要内容 -->
+    <div class="main-content">
+      <!-- 操作区域 -->
+      <div class="action-bar">
+        <div class="search-box">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索产品名称..."
+            prefix-icon="el-icon-search"
+            @keyup.enter="handleSearch"
+          />
         </div>
-        <div>
-          低库存: <strong class="warning">{{ lowStockCount }}</strong>
-        </div>
-        <div>
-          库存总值: <strong>{{ totalValue }}</strong>
+
+        <div class="action-buttons">
+          <el-button type="primary" @click="handleStockAdjust">
+            <i class="el-icon-plus"></i> 库存调整
+          </el-button>
+          <el-button type="success" @click="handleReplenish">
+            <i class="el-icon-refresh"></i> 补货申请
+          </el-button>
         </div>
       </div>
 
-      <div class="pagination-controls">
-        <label>
-          每页
-          <select v-model.number="pageSize">
-            <option :value="5">5</option>
-            <option :value="10">10</option>
-            <option :value="20">20</option>
-          </select>
-          条
-        </label>
-      </div>
-    </section>
-
-    <table class="inventory-table">
-      <thead>
-        <tr>
-          <th>SKU</th>
-          <th>商品名称</th>
-          <th>供应商</th>
-          <th>成本价</th>
-          <th>库存</th>
-          <th>状态</th>
-          <th class="actions-col">操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="item in pagedItems"
-          :key="item.id"
-          :class="{ low: item.quantity <= lowStockThreshold }"
-        >
-          <td>{{ item.sku }}</td>
-          <td>{{ item.name }}</td>
-          <td>{{ item.supplier }}</td>
-          <td>{{ formatCurrency(item.cost) }}</td>
-          <td>{{ item.quantity }}</td>
-          <td>
-            <span v-if="item.quantity <= lowStockThreshold" class="status low">低</span>
-            <span v-else class="status ok">正常</span>
-          </td>
-          <td class="actions-col">
-            <button class="small" @click="openEdit(item)">编辑</button>
-            <button class="small danger" @click="confirmDelete(item)">删除</button>
-          </td>
-        </tr>
-        <tr v-if="pagedItems.length === 0">
-          <td colspan="7" class="empty">无匹配商品</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <footer class="pager">
-      <button :disabled="page === 1" @click="page--">上一页</button>
-      <span>第 {{ page }} / {{ totalPages }} 页</span>
-      <button :disabled="page === totalPages" @click="page++">下一页</button>
-    </footer>
-
-    <!-- Add / Edit Modal -->
-    <div v-if="modalOpen" class="modal-overlay" @click.self="closeModal">
-      <div class="modal">
-        <h3>{{ editMode ? '编辑商品' : '新增商品' }}</h3>
-        <form @submit.prevent="saveItem">
-          <label
-            >SKU
-            <input v-model.trim="form.sku" required />
-          </label>
-          <label
-            >商品名称
-            <input v-model.trim="form.name" required />
-          </label>
-          <label
-            >供应商
-            <input v-model.trim="form.supplier" />
-          </label>
-          <label
-            >成本价
-            <input v-model.number="form.cost" type="number" step="0.01" min="0" required />
-          </label>
-          <label
-            >库存数量
-            <input v-model.number="form.quantity" type="number" min="0" required />
-          </label>
-          <div class="modal-actions">
-            <button type="submit">{{ editMode ? '保存' : '添加' }}</button>
-            <button type="button" class="ghost" @click="closeModal">取消</button>
+      <!-- 库存统计卡片 -->
+      <div class="stats-cards">
+        <el-card class="stat-card" v-for="stat in stats" :key="stat.title">
+          <div class="stat-content">
+            <div class="stat-icon" :style="{ backgroundColor: stat.color }">
+              {{ stat.icon }}
+            </div>
+            <div class="stat-info">
+              <div class="stat-title">{{ stat.title }}</div>
+              <div class="stat-value">{{ stat.value }}</div>
+            </div>
           </div>
-        </form>
+        </el-card>
       </div>
+
+      <!-- 库存列表 -->
+      <el-card class="inventory-table">
+        <div class="table-header">
+          <h3>库存明细</h3>
+          <el-button type="text" @click="refreshData">
+            <i class="el-icon-refresh"></i> 刷新数据
+          </el-button>
+        </div>
+
+        <el-table
+          :data="filteredInventory"
+          border
+          :row-class-name="tableRowClassName"
+          v-loading="loading"
+        >
+          <el-table-column prop="productName" label="产品名称" width="200" />
+          <el-table-column prop="warehouseName" label="仓库" width="150" />
+          <el-table-column prop="stockCount" label="当前库存" width="120">
+            <template #default="{ row }">
+              <span :class="stockStatusClass(row.stockCount, row.minStock)">
+                {{ row.stockCount }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="minStock" label="最低库存" width="120" />
+          <el-table-column prop="stockStatus" label="库存状态" width="150">
+            <template #default="{ row }">
+              <el-tag :type="stockStatusTagType(row.stockCount, row.minStock)">
+                {{ row.stockStatus }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150">
+            <template #default="{ row }">
+              <el-button type="text" @click="handleViewDetails(row)" class="action-btn">
+                查看详情
+              </el-button>
+              <el-button type="text" @click="handleAdjustStock(row)" class="action-btn">
+                调整库存
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <!-- 分页 -->
+        <div class="pagination">
+          <el-pagination
+            v-model:currentPage="currentPage"
+            v-model:pageSize="pageSize"
+            :pageSizes="[5, 10, 20]"
+            layout="total, prev, pager, next, sizes ,jumper"
+            :total="totalItems"
+            @size-change="handleSizeChange"
+            @current-change="handlePageChange"
+          />
+        </div>
+      </el-card>
     </div>
 
-    <!-- Delete Confirm -->
-    <div v-if="deleteTarget" class="modal-overlay" @click.self="cancelDelete">
-      <div class="modal">
-        <h3>确认删除</h3>
-        <p>
-          确定要删除 <strong>{{ deleteTarget.name }}</strong> ({{ deleteTarget.sku }})
-          吗？此操作不可撤销。
-        </p>
-        <div class="modal-actions">
-          <button class="danger" @click="deleteItem">删除</button>
-          <button class="ghost" @click="cancelDelete">取消</button>
-        </div>
-      </div>
-    </div>
+    <!-- 库存调整对话框 -->
+    <el-dialog title="库存调整" v-model="adjustDialogVisible" width="500px">
+      <el-form :model="adjustForm" :rules="adjustRules" ref="adjustFormRef">
+        <el-form-item label="产品" prop="productName">
+          <el-input v-model="adjustForm.productName" disabled />
+        </el-form-item>
+        <el-form-item label="当前库存" prop="currentStock">
+          <el-input v-model="adjustForm.currentStock" disabled />
+        </el-form-item>
+        <el-form-item label="调整数量" prop="adjustQuantity">
+          <el-input-number v-model="adjustForm.adjustQuantity" :min="1" :precision="0" />
+        </el-form-item>
+        <el-form-item label="调整原因" prop="reason">
+          <el-input v-model="adjustForm.reason" type="textarea" :rows="3" />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="adjustDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitAdjust">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 补货申请对话框 -->
+    <el-dialog title="补货申请" v-model="replenishDialogVisible" width="500px">
+      <el-form :model="replenishForm" :rules="replenishRules" ref="replenishFormRef">
+        <el-form-item label="产品" prop="productName">
+          <el-input v-model="replenishForm.productName" disabled />
+        </el-form-item>
+        <el-form-item label="当前库存" prop="currentStock">
+          <el-input v-model="replenishForm.currentStock" disabled />
+        </el-form-item>
+        <el-form-item label="需要补货数量" prop="quantity">
+          <el-input-number v-model="replenishForm.quantity" :min="1" :precision="0" />
+        </el-form-item>
+        <el-form-item label="补货原因" prop="reason">
+          <el-input v-model="replenishForm.reason" type="textarea" :rows="3" />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="replenishDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitReplenish">提交申请</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import AppHeader from '@/components/AppHeader.vue'
-import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 interface InventoryItem {
-  id: string
-  sku: string
-  name: string
-  supplier?: string
-  cost: number
-  quantity: number
+  id: number
+  product_id: number
+  warehouse_id: number
+  stock_count: number
+  min_stock: number
+  create_time: string
+  last_update_time: string
+  delete_time: string | null
+  is_active: boolean
+  productName: string
+  stockStatus: string
 }
+const inventoryData = ref<InventoryItem[]>([])
+// 模拟库存数据
+// const inventoryData = ref([
+//   {
+//     id: 1,
+//     product_id: 101,
+//     warehouse_id: 1,
+//     stock_count: 45,
+//     min_stock: 50,
+//     create_time: '2023-12-01',
+//     last_update_time: '2023-12-05',
+//     delete_time: null,
+//     is_active: true,
+//     productName: '无线蓝牙耳机',
+//     warehouseName: '主仓库',
+//     stockStatus: '正常',
+//   },
+//   {
+//     id: 2,
+//     product_id: 102,
+//     warehouse_id: 2,
+//     stock_count: 25,
+//     min_stock: 30,
+//     create_time: '2023-11-20',
+//     last_update_time: '2023-12-03',
+//     delete_time: null,
+//     is_active: true,
+//     productName: '智能手表',
+//     warehouseName: '分仓库A',
+//     stockStatus: '低库存',
+//   },
+//   {
+//     id: 3,
+//     product_id: 103,
+//     warehouse_id: 1,
+//     stock_count: 8,
+//     min_stock: 10,
+//     create_time: '2023-10-15',
+//     last_update_time: '2023-12-01',
+//     delete_time: null,
+//     is_active: true,
+//     productName: '手机充电器',
+//     warehouseName: '主仓库',
+//     stockStatus: '低库存',
+//   },
+//   {
+//     id: 4,
+//     product_id: 104,
+//     warehouse_id: 3,
+//     stock_count: 120,
+//     min_stock: 100,
+//     create_time: '2023-12-01',
+//     last_update_time: '2023-12-05',
+//     delete_time: null,
+//     is_active: true,
+//     productName: '笔记本电脑',
+//     warehouseName: '分仓库B',
+//     stockStatus: '正常',
+//   },
+//   {
+//     id: 5,
+//     product_id: 105,
+//     warehouse_id: 2,
+//     stock_count: 3,
+//     min_stock: 5,
+//     create_time: '2023-12-02',
+//     last_update_time: '2023-12-04',
+//     delete_time: null,
+//     is_active: true,
+//     productName: '智能音箱',
+//     warehouseName: '分仓库A',
+//     stockStatus: '紧急低库存',
+//   },
+// ])
 
-const router = useRouter()
-const STORAGE_KEY = 'inventoryItems_v1'
-const lowStockThreshold = 5
-
-const items = ref<InventoryItem[]>([])
-const query = ref('')
-const page = ref(1)
+// 页面状态
+const loading = ref(false)
+const searchQuery = ref('')
+const currentPage = ref(1)
 const pageSize = ref(10)
+const totalItems = ref(0)
 
-const modalOpen = ref(false)
-const editMode = ref(false)
-const form = reactive<Partial<InventoryItem>>({
-  id: undefined,
-  sku: '',
-  name: '',
-  supplier: '',
-  cost: 0,
-  quantity: 0,
-})
+// 统计卡片数据
+const stats = ref([
+  { title: '总产品数', value: '5', icon: '📦', color: '#409EFF' },
+  { title: '低库存产品', value: '3', icon: '⚠️', color: '#E6A23C' },
+  { title: '库存总量', value: '201', icon: '📊', color: '#67C23A' },
+  { title: '仓库数量', value: '3', icon: '🏠', color: '#F56C6C' },
+])
 
-const deleteTarget = ref<InventoryItem | null>(null)
-
-function uid() {
-  return Math.random().toString(36).slice(2, 9)
-}
-
-function loadFromStorage() {
-  const raw = localStorage.getItem(STORAGE_KEY)
-  if (raw) {
-    try {
-      items.value = JSON.parse(raw)
-    } catch {
-      items.value = []
-    }
-  } else {
-    // seed demo data
-    items.value = [
-      {
-        id: uid(),
-        sku: 'SKU-1001',
-        name: '蓝牙鼠标',
-        supplier: '供应商A',
-        cost: 12.5,
-        quantity: 34,
-      },
-      {
-        id: uid(),
-        sku: 'SKU-1002',
-        name: '机械键盘',
-        supplier: '供应商B',
-        cost: 45.0,
-        quantity: 8,
-      },
-      {
-        id: uid(),
-        sku: 'SKU-1003',
-        name: '显示器 24"',
-        supplier: '供应商C',
-        cost: 120.0,
-        quantity: 3,
-      },
-      {
-        id: uid(),
-        sku: 'SKU-1004',
-        name: 'USB-C 线',
-        supplier: '供应商A',
-        cost: 3.2,
-        quantity: 120,
-      },
-    ]
-    saveToStorage()
-  }
-}
-
-function saveToStorage() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items.value))
-}
-
-onMounted(loadFromStorage)
-watch(items, saveToStorage, { deep: true })
-
-const filtered = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return items.value
-  return items.value.filter(
-    (i) => i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q),
+// 表格数据
+const inventory = computed(() => {
+  return inventoryData.value.filter(
+    (item) =>
+      item.is_active && item.productName.toLowerCase().includes(searchQuery.value.toLowerCase()),
   )
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize.value)))
-watch([pageSize, filtered], () => {
-  if (page.value > totalPages.value) page.value = totalPages.value
+// 过滤后的库存数据
+const filteredInventory = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return inventory.value.slice(start, end)
 })
 
-const pagedItems = computed(() => {
-  const start = (page.value - 1) * pageSize.value
-  return filtered.value.slice(start, start + pageSize.value)
+// 库存状态计算
+const stockStatusClass = (current: number, min: number) => {
+  if (current < min * 0.3) return 'stock-status-danger'
+  if (current < min * 0.7) return 'stock-status-warning'
+  return 'stock-status-normal'
+}
+
+const stockStatusTagType = (current: number, min: number) => {
+  if (current < min * 0.3) return 'danger'
+  if (current < min * 0.7) return 'warning'
+  return 'success'
+}
+
+// 表格行样式
+const tableRowClassName = (row: InventoryItem) => {
+  if (row.stock_count < row.min_stock * 0.3) return 'danger-row'
+  if (row.stock_count < row.min_stock * 0.7) return 'warning-row'
+  return ''
+}
+
+// 库存调整对话框
+const adjustDialogVisible = ref(false)
+const adjustForm = ref({
+  id: 0,
+  productName: '',
+  currentStock: 0,
+  adjustQuantity: 1,
+  reason: '',
 })
 
-const lowStockCount = computed(
-  () => items.value.filter((i) => i.quantity <= lowStockThreshold).length,
-)
+const adjustRules = {
+  adjustQuantity: [{ required: true, message: '请输入调整数量', trigger: 'blur' }],
+  reason: [{ required: true, message: '请输入调整原因', trigger: 'blur' }],
+}
 
-const totalValue = computed(() => {
-  const v = items.value.reduce((sum, i) => sum + i.cost * i.quantity, 0)
-  return formatCurrency(v)
+// 补货申请对话框
+const replenishDialogVisible = ref(false)
+const replenishForm = ref({
+  id: 0,
+  productName: '',
+  currentStock: 0,
+  quantity: 1,
+  reason: '',
 })
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+const replenishRules = {
+  quantity: [{ required: true, message: '请输入补货数量', trigger: 'blur' }],
+  reason: [{ required: true, message: '请输入补货原因', trigger: 'blur' }],
 }
 
-function openAdd() {
-  editMode.value = false
-  Object.assign(form, { id: undefined, sku: '', name: '', supplier: '', cost: 0, quantity: 0 })
-  modalOpen.value = true
+// 操作方法
+const handleSearch = () => {
+  searchQuery.value = searchQuery.value.trim()
+  refreshData()
 }
 
-function openEdit(item: InventoryItem) {
-  editMode.value = true
-  Object.assign(form, { ...item })
-  modalOpen.value = true
-}
-
-function closeModal() {
-  modalOpen.value = false
-}
-
-function saveItem() {
-  // basic validation
-  if (!form.sku || !form.name || form.cost === undefined || form.quantity === undefined) return
-  if (editMode.value && form.id) {
-    const idx = items.value.findIndex((i) => i.id === form.id)
-    if (idx !== -1) {
-      items.value.splice(idx, 1, { ...(form as InventoryItem) })
+const refreshData = async () => {
+  loading.value = true
+  try {
+    const response = await axios.get('/api/inventory/refresh', {
+      params: {
+        page: currentPage.value,
+        pageSize: pageSize.value,
+        searchQuery: searchQuery.value,
+      },
+    })
+    if (response.data.code === 200) {
+      inventoryData.value = response.data.inventoryItems
+      totalItems.value = response.data.total
+      ElMessage.success('数据已刷新')
+    } else {
+      ElMessage.error(response.data.message || '数据刷新失败')
     }
-  } else {
-    const newItem: InventoryItem = {
-      id: uid(),
-      sku: String(form.sku),
-      name: String(form.name),
-      supplier: form.supplier || '',
-      cost: Number(form.cost) || 0,
-      quantity: Number(form.quantity) || 0,
-    }
-    items.value.unshift(newItem)
-    page.value = 1
+  } catch (error) {
+    console.log(error)
+    ElMessage.error('数据刷新失败')
+  } finally {
+    loading.value = false
   }
-  closeModal()
 }
 
-function confirmDelete(item: InventoryItem) {
-  deleteTarget.value = item
+const handleStockAdjust = () => {
+  ElMessage.warning('请选择需要调整库存的产品')
 }
 
-function cancelDelete() {
-  deleteTarget.value = null
+const handleReplenish = () => {
+  ElMessage.warning('请选择需要补货的产品')
 }
 
-function deleteItem() {
-  if (!deleteTarget.value) return
-  const idx = items.value.findIndex((i) => i.id === deleteTarget.value!.id)
-  if (idx !== -1) items.value.splice(idx, 1)
-  deleteTarget.value = null
+const handleViewDetails = (row: InventoryItem) => {
+  ElMessage.info(`查看产品: ${row.productName} 的详细库存信息`)
 }
 
-function goBack() {
-  router.push('/dashboard')
+const handleAdjustStock = (row: InventoryItem) => {
+  adjustForm.value = {
+    id: row.id,
+    productName: row.productName,
+    currentStock: row.stock_count,
+    adjustQuantity: 1,
+    reason: '',
+  }
+  adjustDialogVisible.value = true
 }
+
+const submitAdjust = () => {
+  adjustDialogVisible.value = false
+  ElMessage.success('库存调整已提交')
+  refreshData()
+}
+
+const submitReplenish = () => {
+  replenishDialogVisible.value = false
+  ElMessage.success('补货申请已提交')
+  refreshData()
+}
+
+const handlePageChange = (page: number) => {
+  currentPage.value = page
+  refreshData()
+}
+const handleSizeChange = (size: number) => {
+  pageSize.value = size
+  refreshData()
+}
+
+// 初始化
+onMounted(() => {
+  refreshData()
+})
 </script>
 
 <style scoped>
 .inventory-container {
-  max-width: 1100px;
-  margin: 24px auto;
-  padding: 18px;
-  background: #f7f9fb;
-  border-radius: 10px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: #1f2937;
+  padding: 20px;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
-.inventory-header {
+.main-content {
+  margin-top: 20px;
+}
+
+.action-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
 }
 
-.header-left {
+.search-box {
+  flex: 1;
+  min-width: 300px;
+}
+
+.action-buttons {
   display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.back-btn {
-  background: transparent;
-  border: none;
-  font-size: 1rem;
-  cursor: pointer;
-  color: #4b6cb7;
-}
-
-.inventory-header h1 {
-  margin: 0;
-  font-size: 1.3rem;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
   gap: 10px;
 }
 
-.search {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #e6e9ef;
-  min-width: 260px;
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 25px;
 }
 
-.add-btn {
-  background: #4b6cb7;
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  border-radius: 8px;
+.stat-card {
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
   cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.controls {
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.stat-content {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  justify-content: center;
+  gap: 15px;
 }
 
-.stats {
+.stat-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
   display: flex;
-  gap: 18px;
-  color: #374151;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: white;
+  font-weight: bold;
 }
 
-.stats .warning {
-  color: #d97706;
-  font-weight: 700;
+.stat-info {
+  flex: 1;
 }
 
-.pagination-controls select {
-  margin-left: 6px;
+.stat-title {
+  font-size: 14px;
+  color: #606266;
+  margin-bottom: 5px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
 }
 
 .inventory-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
+  margin-top: 20px;
 }
 
-.inventory-table thead {
-  background: #f1f5f9;
-  text-align: left;
-}
-
-.inventory-table th,
-.inventory-table td {
-  padding: 12px 14px;
-  border-bottom: 1px solid #f1f1f1;
-}
-
-.inventory-table .actions-col {
-  text-align: right;
-  width: 160px;
-}
-
-.inventory-table tbody tr.low {
-  background: rgba(249, 231, 159, 0.35);
-}
-
-.status {
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  color: white;
-}
-
-.status.low {
-  background: #f59e0b;
-}
-.status.ok {
-  background: #10b981;
-}
-
-.small {
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  background: #eef2ff;
-  color: #3730a3;
-  margin-left: 6px;
-}
-
-.small.danger {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.empty {
-  text-align: center;
-  padding: 22px;
-  color: #6b7280;
-}
-
-.pager {
+.table-header {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-top: 12px;
+  margin-bottom: 20px;
 }
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 60;
-}
-
-.modal {
-  width: 420px;
-  background: white;
-  padding: 18px;
-  border-radius: 10px;
-  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.2);
-}
-
-.modal h3 {
-  margin: 0 0 12px;
-}
-
-.modal form label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 0.95rem;
-}
-
-.modal form input {
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #e6e9ef;
-  margin-top: 4px;
-  margin-bottom: 10px;
-  box-sizing: border-box;
-}
-
-.modal-actions {
+.pagination {
+  margin-top: 20px;
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
 }
 
-.modal button {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
+.stock-status-normal {
+  color: #67c23a;
+  font-weight: bold;
 }
 
-.modal .ghost {
-  background: #f3f4f6;
+.stock-status-warning {
+  color: #e6a23c;
+  font-weight: bold;
 }
 
-.modal .danger {
-  background: #ef4444;
-  color: white;
+.stock-status-danger {
+  color: #f56c6c;
+  font-weight: bold;
 }
 
-@media (max-width: 640px) {
-  .modal {
-    width: 92%;
-  }
-  .header-actions {
-    flex-direction: column;
-    gap: 8px;
-    align-items: flex-end;
-  }
-  .search {
-    min-width: 160px;
-  }
+.danger-row {
+  background-color: #fef0f0 !important;
+}
+
+.warning-row {
+  background-color: #fdf6ec !important;
+}
+
+.action-btn {
+  margin-right: 5px;
 }
 </style>

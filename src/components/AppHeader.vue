@@ -20,7 +20,7 @@
 
         <div class="header-logo" @click="goHome" role="button" aria-label="首页">
           <div class="logo-icon">📦</div>
-          <h1 class="logo-title">StockMaster</h1>
+          <h1 class="logo-title">{{ title }}</h1>
         </div>
       </div>
 

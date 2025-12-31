@@ -1,5 +1,5 @@
 <template>
-  <AppHeader :title="'StockMaster'" />
+  <AppHeader :title="'采购订单管理'" />
   <div class="orders-container">
     <header class="orders-header">
       <div class="header-left">
