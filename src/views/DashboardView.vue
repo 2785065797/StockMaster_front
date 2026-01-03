@@ -100,7 +100,8 @@ const topCategory = ref('生鲜食品')
 const router = useRouter()
 
 const navigateTo = (path: string) => {
-  router.push(`/${path}`)
+  //router.push(`/${path}`)
+  router.push('/' + path)
 }
 
 // 模拟自动更新库存数据

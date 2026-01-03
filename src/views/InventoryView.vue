@@ -154,20 +154,20 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { dayjs, ElMessage } from 'element-plus'
 import AppHeader from '@/components/AppHeader.vue'
 import axios from 'axios'
 
 interface InventoryItem {
   id: number
-  product_id: number
-  warehouse_id: number
-  stock_count: number
-  min_stock: number
-  create_time: string
-  last_update_time: string
-  delete_time: string | null
-  is_active: boolean
+  productId: number
+  warehouseName: string
+  stockCount: number
+  minStock: number
+  createTime: string
+  lastUpdateTime: string
+  deleteTime: string | null
+  isActive: boolean
   productName: string
   stockStatus: string
 }
@@ -265,7 +265,7 @@ const stats = ref([
 const inventory = computed(() => {
   return inventoryData.value.filter(
     (item) =>
-      item.is_active && item.productName.toLowerCase().includes(searchQuery.value.toLowerCase()),
+      item.isActive && item.productName.toLowerCase().includes(searchQuery.value.toLowerCase()),
   )
 })
 
@@ -291,8 +291,8 @@ const stockStatusTagType = (current: number, min: number) => {
 
 // 表格行样式
 const tableRowClassName = (row: InventoryItem) => {
-  if (row.stock_count < row.min_stock * 0.3) return 'danger-row'
-  if (row.stock_count < row.min_stock * 0.7) return 'warning-row'
+  if (row.stockCount < row.minStock * 0.3) return 'danger-row'
+  if (row.stockCount < row.minStock * 0.7) return 'warning-row'
   return ''
 }
 
@@ -300,6 +300,7 @@ const tableRowClassName = (row: InventoryItem) => {
 const adjustDialogVisible = ref(false)
 const adjustForm = ref({
   id: 0,
+  productId: 0,
   productName: '',
   currentStock: 0,
   adjustQuantity: 1,
@@ -315,6 +316,7 @@ const adjustRules = {
 const replenishDialogVisible = ref(false)
 const replenishForm = ref({
   id: 0,
+  productId: 0,
   productName: '',
   currentStock: 0,
   quantity: 1,
@@ -361,8 +363,16 @@ const handleStockAdjust = () => {
   ElMessage.warning('请选择需要调整库存的产品')
 }
 
-const handleReplenish = () => {
-  ElMessage.warning('请选择需要补货的产品')
+const handleReplenish = (row: InventoryItem) => {
+  replenishForm.value = {
+    id: row.id,
+    productId: row.productId,
+    productName: row.productName,
+    currentStock: row.stockCount,
+    quantity: 1,
+    reason: '',
+  }
+  replenishDialogVisible.value = true
 }
 
 const handleViewDetails = (row: InventoryItem) => {
@@ -372,24 +382,62 @@ const handleViewDetails = (row: InventoryItem) => {
 const handleAdjustStock = (row: InventoryItem) => {
   adjustForm.value = {
     id: row.id,
+    productId: row.productId,
     productName: row.productName,
-    currentStock: row.stock_count,
+    currentStock: row.stockCount,
     adjustQuantity: 1,
     reason: '',
   }
   adjustDialogVisible.value = true
 }
 
-const submitAdjust = () => {
-  adjustDialogVisible.value = false
-  ElMessage.success('库存调整已提交')
-  refreshData()
+const submitAdjust = async () => {
+  try {
+    await axios.post('/api/inventory/adjust', {
+      id: adjustForm.value.id,
+      adjustQuantity: adjustForm.value.adjustQuantity,
+      reason: adjustForm.value.reason,
+    })
+    adjustDialogVisible.value = false
+    ElMessage.success('库存调整已提交')
+    refreshData()
+  } catch (error) {
+    console.log(error)
+    ElMessage.error('库存调整失败')
+  }
 }
 
-const submitReplenish = () => {
-  replenishDialogVisible.value = false
-  ElMessage.success('补货申请已提交')
-  refreshData()
+const submitReplenish = async () => {
+  try {
+    // 1. 提交补货申请
+    await axios.post('/api/inventory/replenish', {
+      id: replenishForm.value.id,
+      quantity: replenishForm.value.quantity,
+      reason: replenishForm.value.reason,
+    })
+
+    // 2. 创建采购订单（新增逻辑）
+    const defaultSupplierId = 1 // 假设默认供应商ID为1
+    const purchaseOrderData = {
+      supplierId: defaultSupplierId,
+      details: [
+        {
+          productId: replenishForm.value.productId,
+          quantity: replenishForm.value.quantity,
+          deliveryDate: dayjs().add(7, 'day').format('YYYY-MM-DD'),
+        },
+      ],
+    }
+
+    await axios.post('/api/purchase-orders', purchaseOrderData)
+
+    replenishDialogVisible.value = false
+    ElMessage.success('补货申请已提交，采购订单已创建')
+    refreshData()
+  } catch (error) {
+    console.error('补货申请或采购订单创建失败:', error)
+    ElMessage.error('补货申请或采购订单创建失败')
+  }
 }
 
 const handlePageChange = (page: number) => {
