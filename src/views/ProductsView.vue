@@ -17,11 +17,8 @@
         </div>
 
         <div class="action-buttons">
-          <el-button type="primary" @click="handleAddProduct">
-            <i class="el-icon-plus"></i> 新增商品
-          </el-button>
           <el-button type="success" @click="handleExport">
-            <i class="el-icon-download"></i> 导出商品
+            <i class="el-icon-download"></i> 导出数据
           </el-button>
           <el-button type="warning" @click="handleRefresh">
             <i class="el-icon-refresh"></i> 刷新数据
@@ -31,7 +28,12 @@
 
       <!-- 商品统计卡片 -->
       <div class="stats-cards">
-        <el-card class="stat-card" v-for="stat in stats" :key="stat.title">
+        <el-card
+          class="stat-card"
+          v-for="(stat, index) in stats"
+          :key="stat.title"
+          @click="handleStatClick(index)"
+        >
           <div class="stat-content">
             <div class="stat-icon" :style="{ backgroundColor: stat.color }">
               {{ stat.icon }}
@@ -45,70 +47,127 @@
       </div>
 
       <!-- 商品列表 -->
-      <el-card class="product-table">
-        <div class="table-header">
-          <h3>商品列表</h3>
-        </div>
+      <div v-if="!showCategoryList">
+        <el-card class="product-table">
+          <div class="table-header">
+            <h3>商品列表</h3>
+            <el-button type="primary" @click="handleAddProduct">
+              <i class="el-icon-plus"></i> 新增商品
+            </el-button>
+          </div>
 
-        <el-table
-          :data="filteredProducts"
-          border
-          :row-class-name="tableRowClassName"
-          v-loading="loading"
-        >
-          <el-table-column prop="name" label="商品名称" width="220" />
-          <el-table-column prop="categoryName" label="分类" width="150" />
-          <el-table-column prop="unit" label="单位" width="100" />
-          <el-table-column prop="currentPrice" label="当前价格(¥)" width="120">
-            <template #default="{ row }"> ¥{{ row.currentPrice.toFixed(2) }} </template>
-          </el-table-column>
-          <el-table-column prop="costPrice" label="成本价(¥)" width="120">
-            <template #default="{ row }"> ¥{{ row.costPrice.toFixed(2) }} </template>
-          </el-table-column>
-          <el-table-column prop="preSalePrice" label="促销价(¥)" width="120">
-            <template #default="{ row }">
-              <span v-if="row.preSalePrice > 0">¥{{ row.preSalePrice.toFixed(2) }}</span>
-              <span v-else class="no-price">无</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="stock" label="库存数量" width="120" />
-          <el-table-column prop="is_active" label="状态" width="100">
-            <template #default="{ row }">
-              <el-tag :type="row.is_active ? 'success' : 'danger'">
-                {{ row.is_active ? '启用' : '禁用' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="180">
-            <template #default="{ row }">
-              <el-button type="text" @click="handleEditProduct(row)" class="action-btn">
-                编辑
-              </el-button>
-              <el-button
-                type="text"
-                @click="handleToggleStatus(row)"
-                class="action-btn"
-                :class="row.is_active ? 'disable-btn' : 'enable-btn'"
-              >
-                {{ row.is_active ? '禁用' : '启用' }}
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+          <el-table
+            :data="filteredProducts"
+            border
+            :row-class-name="tableRowClassName"
+            v-loading="loading"
+          >
+            <el-table-column prop="name" label="商品名称" width="220" />
+            <el-table-column prop="categoryName" label="分类" width="150" />
+            <el-table-column prop="unit" label="单位" width="100" />
+            <el-table-column prop="currentPrice" label="当前价格(¥)" width="120">
+              <template #default="{ row }"> ¥{{ row.currentPrice.toFixed(2) }} </template>
+            </el-table-column>
+            <el-table-column prop="costPrice" label="成本价(¥)" width="120">
+              <template #default="{ row }"> ¥{{ row.costPrice.toFixed(2) }} </template>
+            </el-table-column>
+            <el-table-column prop="preSalePrice" label="促销价(¥)" width="120">
+              <template #default="{ row }">
+                <span v-if="row.preSalePrice > 0">¥{{ row.preSalePrice.toFixed(2) }}</span>
+                <span v-else class="no-price">无</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="stock" label="库存数量" width="120" />
+            <el-table-column prop="isActive" label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="row.isActive ? 'success' : 'danger'">
+                  {{ row.isActive ? '启用' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180">
+              <template #default="{ row }">
+                <el-button type="text" @click="handleEditProduct(row)" class="action-btn">
+                  编辑
+                </el-button>
+                <el-button
+                  type="text"
+                  @click="handleToggleStatus(row)"
+                  class="action-btn"
+                  :class="row.isActive ? 'disable-btn' : 'enable-btn'"
+                >
+                  {{ row.isActive ? '禁用' : '启用' }}
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
 
-        <!-- 分页 -->
-        <div class="pagination">
-          <el-pagination
-            v-model:currentPage="currentPage"
-            v-model:pageSize="pageSize"
-            :page-sizes="[5, 10, 20, 50]"
-            layout="total, prev, pager, next, sizes, jumper"
-            :total="totalItems"
-            @size-change="handleSizeChange"
-            @current-change="handlePageChange"
-          />
-        </div>
-      </el-card>
+          <!-- 分页 -->
+          <div class="pagination">
+            <el-pagination
+              v-model:currentPage="currentPage"
+              v-model:pageSize="pageSize"
+              :page-sizes="[5, 10, 20, 50]"
+              layout="total, prev, pager, next, sizes, jumper"
+              :total="totalItems"
+              @size-change="handleSizeChange"
+              @current-change="handlePageChange"
+            />
+          </div>
+        </el-card>
+      </div>
+
+      <!-- 商品分类管理列表 -->
+      <div v-else>
+        <el-card class="category-management">
+          <div class="table-header">
+            <h3>商品分类管理</h3>
+            <el-button type="primary" @click="handleAddCategory">
+              <i class="el-icon-plus"></i> 新增分类
+            </el-button>
+          </div>
+
+          <el-table :data="categories" border v-loading="loading">
+            <el-table-column prop="name" label="分类名称" width="200" />
+            <el-table-column prop="description" label="分类描述" width="300" />
+            <el-table-column prop="isActive" label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="row.isActive ? 'success' : 'danger'">
+                  {{ row.isActive ? '启用' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="150">
+              <template #default="{ row }">
+                <el-button type="text" @click="handleEditCategory(row)" class="action-btn">
+                  编辑
+                </el-button>
+                <el-button
+                  type="text"
+                  @click="handleToggleCategoryStatus(row)"
+                  class="action-btn"
+                  :class="row.isActive ? 'disable-btn' : 'enable-btn'"
+                >
+                  {{ row.isActive ? '禁用' : '启用' }}
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <!-- 分页 -->
+          <div class="pagination" v-if="categories.length > 0">
+            <el-pagination
+              v-model:currentPage="categoryPage"
+              v-model:pageSize="categoryPageSize"
+              :page-sizes="[5, 10, 20]"
+              layout="total, prev, pager, next, sizes"
+              :total="categories.length"
+              @size-change="handleCategorySizeChange"
+              @current-change="handleCategoryPageChange"
+            />
+          </div>
+        </el-card>
+      </div>
 
       <!-- 新增/编辑商品对话框 -->
       <el-dialog
@@ -129,9 +188,9 @@
             <el-input v-model="currentProduct.name" placeholder="请输入商品名称" />
           </el-form-item>
 
-          <el-form-item label="商品分类" prop="category_id">
+          <el-form-item label="商品分类" prop="categoryId">
             <el-select
-              v-model="currentProduct.category_id"
+              v-model="currentProduct.categoryId"
               placeholder="请选择商品分类"
               class="category-select"
             >
@@ -181,10 +240,10 @@
             />
           </el-form-item>
 
-          <el-form-item label="商品图片" prop="image_path">
+          <el-form-item label="商品图片" prop="imagePath">
             <div class="image-upload" @click="triggerFileInput">
-              <div v-if="currentProduct.image_path" class="image-preview">
-                <img :src="currentProduct.image_path" alt="商品图片" />
+              <div v-if="currentProduct.imagePath" class="image-preview">
+                <img :src="currentProduct.imagePath" alt="商品图片" />
                 <div class="image-overlay" @click="handleRemoveImage">
                   <i class="el-icon-close"></i>
                 </div>
@@ -213,8 +272,8 @@
             />
           </el-form-item>
 
-          <el-form-item label="是否启用" prop="is_active">
-            <el-switch v-model="currentProduct.is_active" />
+          <el-form-item label="是否启用" prop="isActive">
+            <el-switch v-model="currentProduct.isActive" />
           </el-form-item>
         </el-form>
 
@@ -225,43 +284,83 @@
           </span>
         </template>
       </el-dialog>
+
+      <!-- 新增商品分类对话框 -->
+      <el-dialog
+        :title="currentCategory.id ? '编辑商品分类' : '新增商品分类'"
+        v-model="categoryDialogVisible"
+        width="400px"
+        :close-on-click-modal="false"
+      >
+        <el-form
+          :model="currentCategory"
+          :rules="categoryRules"
+          ref="categoryFormRef"
+          label-width="100px"
+        >
+          <el-form-item label="分类名称" prop="name">
+            <el-input v-model="currentCategory.name" placeholder="请输入分类名称" />
+          </el-form-item>
+          <el-form-item label="分类描述" prop="description">
+            <el-input
+              v-model="currentCategory.description"
+              type="textarea"
+              :rows="2"
+              placeholder="请输入分类描述"
+            />
+          </el-form-item>
+          <el-form-item label="是否启用" prop="isActive">
+            <el-switch v-model="currentCategory.isActive" />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="categoryDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="submitCategory">确定</el-button>
+          </span>
+        </template>
+      </el-dialog>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import AppHeader from '@/components/AppHeader.vue'
 import axios from 'axios'
 
-// 数据模型
+// ========================
+// 数据模型定义
+// ========================
 interface Category {
   id: number
   name: string
   description: string
-  is_active: boolean
+  isActive: boolean
 }
 
 interface Product {
   id: number
   name: string
-  category_id: number
+  categoryId: number
   categoryName: string
   unit: string
   currentPrice: number
   preSalePrice: number
   costPrice: number
-  image_path: string
-  is_active: boolean
+  imagePath: string
+  isActive: boolean
   description: string
   stock: number
-  create_time: string
-  update_time: string
-  delete_time: string | null
+  createTime: string
+  updateTime: string
+  deleteTime: string | null
 }
 
-// 页面状态
+// ========================
+// 页面状态管理
+// ========================
 const loading = ref(false)
 const searchQuery = ref('')
 const currentPage = ref(1)
@@ -269,6 +368,9 @@ const pageSize = ref(10)
 const totalItems = ref(0)
 const productDialogVisible = ref(false)
 const productFormRef = ref()
+const categoryPage = ref(1)
+const categoryPageSize = ref(10)
+const currentStatus = ref(0)
 
 // 商品数据
 const products = ref<Product[]>([])
@@ -285,41 +387,56 @@ const stats = ref([
   { title: '商品总数', value: '125', icon: '📦', color: '#409EFF' },
   { title: '启用商品', value: '102', icon: '✅', color: '#67C23A' },
   { title: '禁用商品', value: '23', icon: '❌', color: '#E6A23C' },
-  { title: '库存总量', value: '5,870', icon: '📊', color: '#F56C6C' },
+  { title: '商品分类', value: '0', icon: '📁', color: '#909399' },
 ])
 
 // 分类数据
 const categories = ref<Category[]>([])
 
+// 商品分类表单引用
+const categoryFormRef = ref()
+
 // 当前编辑的商品
-const currentProduct = ref<Product>({
+const currentProduct = ref({
   id: 0,
   name: '',
-  category_id: 0,
+  categoryId: 0,
   categoryName: '',
   unit: '',
   currentPrice: 0,
   preSalePrice: 0,
   costPrice: 0,
-  image_path: '',
-  is_active: true,
+  imagePath: '',
+  isActive: true,
   description: '',
   stock: 0,
-  create_time: '',
-  update_time: '',
-  delete_time: null,
+  createTime: '',
+  updateTime: '',
+  deleteTime: null as string | null,
 })
 
 // 图片文件状态
 const currentImageFile = ref<File | null>(null)
 
+// 商品分类相关状态
+const categoryDialogVisible = ref(false)
+const showCategoryList = ref(false)
+const currentCategory = ref({
+  id: 0,
+  name: '',
+  description: '',
+  isActive: true,
+})
+
+// ========================
 // 表单验证规则
+// ========================
 const productRules = ref({
   name: [
     { required: true, message: '商品名称不能为空', trigger: 'blur' },
     { min: 2, max: 50, message: '商品名称长度在 2-50 个字符', trigger: 'blur' },
   ],
-  category_id: [{ required: true, message: '请选择商品分类', trigger: 'change' }],
+  categoryId: [{ required: true, message: '请选择商品分类', trigger: 'change' }],
   unit: [
     { required: true, message: '商品单位不能为空', trigger: 'blur' },
     { min: 1, max: 10, message: '单位长度在 1-10 个字符', trigger: 'blur' },
@@ -334,13 +451,107 @@ const productRules = ref({
   ],
 })
 
-// 表格行样式
-const tableRowClassName = (row: Product) => {
-  if (!row.is_active) return 'disabled-row'
-  return ''
+const categoryRules = ref({
+  name: [
+    { required: true, message: '分类名称不能为空', trigger: 'blur' },
+    { min: 2, max: 50, message: '分类名称长度在 2-50 个字符', trigger: 'blur' },
+  ],
+  description: [{ max: 200, message: '描述长度不能超过200个字符', trigger: 'blur' }],
+})
+
+// ========================
+// 分类数据操作
+// ========================
+const fetchCategories = async () => {
+  try {
+    const response = await axios.get('/api/category/fetch')
+    if (response.data.code === 200) {
+      categories.value = response.data.data
+      console.log(response.data.data)
+    }
+  } catch (error) {
+    console.error('获取分类失败:', error)
+  }
 }
 
-// 操作方法
+const handleAddCategory = () => {
+  currentCategory.value = {
+    id: 0,
+    name: '',
+    description: '',
+    isActive: true,
+  }
+  categoryDialogVisible.value = true
+}
+
+const handleEditCategory = (category: Category) => {
+  currentCategory.value = { ...category }
+  categoryDialogVisible.value = true
+}
+
+const handleToggleCategoryStatus = async (category: Category) => {
+  try {
+    const newStatus = !category.isActive
+    const response = await axios.put(`/api/category/${category.id}/status`, {
+      isActive: newStatus,
+    })
+
+    if (response.data.code === 200) {
+      category.isActive = newStatus
+      ElMessage.success(newStatus ? '分类已启用' : '分类已禁用')
+    } else {
+      ElMessage.error(response.data.message || '状态更新失败')
+    }
+  } catch (error) {
+    console.error('分类状态更新失败:', error)
+    ElMessage.error('状态更新失败')
+  }
+}
+
+const handleCategorySizeChange = (size: number) => {
+  categoryPageSize.value = size
+}
+
+const handleCategoryPageChange = (page: number) => {
+  categoryPage.value = page
+}
+
+const submitCategory = async () => {
+  try {
+    const form = categoryFormRef.value
+    await form.validate()
+
+    let response
+    if (currentCategory.value.id) {
+      response = await axios.put(`/api/category/${currentCategory.value.id}`, {
+        name: currentCategory.value.name,
+        description: currentCategory.value.description,
+        isActive: currentCategory.value.isActive,
+      })
+    } else {
+      response = await axios.post('/api/category/insert', {
+        name: currentCategory.value.name,
+        description: currentCategory.value.description,
+        isActive: currentCategory.value.isActive,
+      })
+    }
+
+    if (response.data.code === 200) {
+      ElMessage.success(currentCategory.value.id ? '分类更新成功' : '分类新增成功')
+      categoryDialogVisible.value = false
+      fetchCategories()
+    } else {
+      ElMessage.error(response.data.message || '操作失败')
+    }
+  } catch (error) {
+    console.error('分类操作失败:', error)
+    ElMessage.error('操作失败')
+  }
+}
+
+// ========================
+// 商品数据操作
+// ========================
 const refreshData = async () => {
   loading.value = true
   try {
@@ -353,7 +564,6 @@ const refreshData = async () => {
     })
 
     if (response.data.code === 200) {
-      // 处理数据，添加额外字段
       const processedProducts = response.data.products.map((product: Product) => ({
         ...product,
         categoryName: product.categoryName || '未分类',
@@ -380,43 +590,29 @@ const handleSearch = () => {
 }
 
 const handleAddProduct = () => {
-  currentProduct.value = {
-    id: 0,
-    name: '',
-    category_id: 0,
-    categoryName: '',
-    unit: '',
-    currentPrice: 0,
-    preSalePrice: 0,
-    costPrice: 0,
-    image_path: '',
-    is_active: true,
-    description: '',
-    stock: 0,
-    create_time: '',
-    update_time: '',
-    delete_time: null,
-  }
+  currentProduct.value = { ...currentProduct.value }
   currentImageFile.value = null
+  if (productFormRef.value) {
+    productFormRef.value.resetFields()
+  }
   productDialogVisible.value = true
 }
 
 const handleEditProduct = (product: Product) => {
   currentProduct.value = { ...product }
-  // 保留现有图片路径（用于预览），但清空临时文件
   currentImageFile.value = null
   productDialogVisible.value = true
 }
 
 const handleToggleStatus = async (product: Product) => {
   try {
-    const newStatus = !product.is_active
+    const newStatus = !product.isActive
     const response = await axios.put(`/api/products/${product.id}/status`, {
-      is_active: newStatus,
+      isActive: newStatus,
     })
 
     if (response.data.code === 200) {
-      product.is_active = newStatus
+      product.isActive = newStatus
       ElMessage.success(newStatus ? '商品已启用' : '商品已禁用')
     } else {
       ElMessage.error(response.data.message || '状态更新失败')
@@ -427,8 +623,11 @@ const handleToggleStatus = async (product: Product) => {
   }
 }
 
+// ========================
+// 商品图片处理
+// ========================
 const handleRemoveImage = () => {
-  currentProduct.value.image_path = ''
+  currentProduct.value.imagePath = ''
   currentImageFile.value = null
 }
 
@@ -443,68 +642,57 @@ const handleImageUpload = (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
 
-  // 验证文件类型和大小
   if (!file.type.match('image/jpeg|image/png')) {
     ElMessage.error('只支持 JPG/PNG 格式图片')
     return
   }
 
   if (file.size > 5 * 1024 * 1024) {
-    // 5MB
     ElMessage.error('图片大小不能超过 5MB')
     return
   }
 
-  // 保存文件对象
   currentImageFile.value = file
-
-  // 生成预览URL
   const previewUrl = URL.createObjectURL(file)
-  currentProduct.value.image_path = previewUrl
+  currentProduct.value.imagePath = previewUrl
 }
 
+// ========================
+// 商品表单提交
+// ========================
 const submitProduct = async () => {
   try {
     const form = productFormRef.value
     await form.validate()
 
-    // 准备提交数据
     const productData = {
       name: currentProduct.value.name,
-      category_id: currentProduct.value.category_id,
+      categoryId: currentProduct.value.categoryId,
       unit: currentProduct.value.unit,
       currentPrice: currentProduct.value.currentPrice,
       preSalePrice: currentProduct.value.preSalePrice,
       costPrice: currentProduct.value.costPrice,
-      is_active: currentProduct.value.is_active,
+      isActive: currentProduct.value.isActive,
       description: currentProduct.value.description,
     } as Record<string, unknown>
 
     let response
     const formData = new FormData()
-
-    // 添加商品数据
     Object.keys(productData as Record<string, unknown>).forEach((key) => {
       formData.append(key, String(productData[key]))
     })
 
-    // 添加图片文件（如果存在）
     if (currentImageFile.value) {
       formData.append('image', currentImageFile.value, currentImageFile.value.name)
     }
 
-    // 提交到后端
     if (currentProduct.value.id) {
       response = await axios.put(`/api/products/${currentProduct.value.id}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        headers: { 'Content-Type': 'multipart/form-data' },
       })
     } else {
-      response = await axios.post('/api/products', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      response = await axios.post('/api/products/insert', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       })
     }
 
@@ -519,22 +707,26 @@ const submitProduct = async () => {
     console.error('提交商品失败:', error)
     ElMessage.error('操作失败')
   } finally {
-    // 清理临时文件
     currentImageFile.value = null
-    // 移除预览URL
-    if (currentProduct.value.image_path.startsWith('blob:')) {
-      URL.revokeObjectURL(currentProduct.value.image_path)
+    if (currentProduct.value.imagePath && currentProduct.value.imagePath.startsWith('blob:')) {
+      URL.revokeObjectURL(currentProduct.value.imagePath)
     }
   }
 }
 
+// ========================
+// 操作按钮处理
+// ========================
 const handleExport = () => {
   ElMessage.success('导出功能已实现，正在生成Excel文件...')
-  // 实际实现时调用后端导出API
 }
 
 const handleRefresh = () => {
-  refreshData()
+  if (currentStatus.value === 3) {
+    fetchCategories()
+  } else {
+    refreshData()
+  }
 }
 
 const handleSizeChange = (size: number) => {
@@ -547,39 +739,45 @@ const handlePageChange = (page: number) => {
   refreshData()
 }
 
+const handleStatClick = (index: number) => {
+  currentStatus.value = index
+  showCategoryList.value = index === 3
+}
+
 const handleBeforeClose = (done: () => void) => {
-  if (productFormRef.value) {
-    productFormRef.value.validate((valid: boolean) => {
-      if (valid) {
-        done()
-      }
+  if (JSON.stringify(currentProduct.value) !== JSON.stringify(currentProduct.value)) {
+    ElMessageBox.confirm('您有未保存的修改，确定要关闭吗？', '提示', {
+      type: 'warning',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+    }).then(() => {
+      productDialogVisible.value = false
+      done()
     })
   } else {
+    productDialogVisible.value = false
     done()
   }
 }
 
-// 初始化
-const fetchCategories = async () => {
-  try {
-    const response = await axios.get('/api/categories')
-    if (response.data.code === 200) {
-      categories.value = response.data.data.filter((c: Category) => c.is_active)
-    }
-  } catch (error) {
-    console.error('获取分类失败:', error)
-  }
+// ========================
+// 表格行样式
+// ========================
+const tableRowClassName = (row: Product) => {
+  return !row.isActive ? 'disabled-row' : ''
 }
 
+// ========================
+// 生命周期
+// ========================
 onMounted(() => {
   refreshData()
   fetchCategories()
 })
 
 onBeforeUnmount(() => {
-  // 清理所有预览URL
-  if (currentProduct.value.image_path && currentProduct.value.image_path.startsWith('blob:')) {
-    URL.revokeObjectURL(currentProduct.value.image_path)
+  if (currentProduct.value.imagePath && currentProduct.value.imagePath.startsWith('blob:')) {
+    URL.revokeObjectURL(currentProduct.value.imagePath)
   }
 })
 </script>
@@ -772,5 +970,9 @@ onBeforeUnmount(() => {
 
 .category-select {
   width: 100%;
+}
+
+.category-management {
+  margin-top: 20px;
 }
 </style>
